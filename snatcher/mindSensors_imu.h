@@ -33,7 +33,7 @@
 #pragma systemFile
 
 #ifndef __COMMON_H__
-#include "MindSensors_common.h"
+#include "mindsensors_common.h"
 #endif
 
 #define MSIMU_IMU_I2C_ADDR            0x22  /*!< IMU I2C address */
