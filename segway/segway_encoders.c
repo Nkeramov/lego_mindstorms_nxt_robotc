@@ -1,6 +1,7 @@
 const tSensors Gyro = S2;
 const float your_wheel_diameter = 42;
-#include "segway-driver.h"
+
+#include "segway_driver.h"
 
 task main()
 {
