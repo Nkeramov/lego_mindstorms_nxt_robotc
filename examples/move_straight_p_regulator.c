@@ -1,3 +1,7 @@
+int clampPower(int val, int min, int max) {
+	return (val < min) ? min : ((val > max) ? max : val);
+}
+
 task main() {
     eraseDisplay();
 
@@ -5,15 +9,16 @@ task main() {
     const int L = 100;              // travel distance, cm
     const int BASE_POWER = 50;      // base motor power
     const int MIN_POWER  = 10;      // below this motors may stall
+    const int MAX_POWER  = 100;			// max morors power
     const float kp = 2.0;           // proportional gain
 
     // compute path using the original formula
-    // rotations = (L * 10) / (PI * D)  — number of wheel rotations
-    // degrees  = rotations * 360       — encoder degrees
+    // rotations = (L * 10) / (PI * D)  a?? number of wheel rotations
+    // degrees  = rotations * 360       a?? encoder degrees
     // L*10 converts cm to mm; PI*D is the wheel circumference in mm
     float pathF = ((float)L * 10.0) / (PI * D) * 360.0;
     // round to the nearest whole degree
-    int path  = (int)(pathF + 0.5);     
+    int path  = (int)(pathF + 0.5);
 
     // reset encoders
     nMotorEncoder[motorB] = 0;
@@ -32,17 +37,17 @@ task main() {
         // stop both motors together when both wheels have covered the path
         if (encB >= path && encC >= path) break;
 
-        // error: how much C is ahead of B (positive → C is ahead)
+        // error: how much C is ahead of B (positive a?? C is ahead)
         int err = encC - encB;
 
         // proportional correction
         // if C is ahead (err > 0), slow C down and speed B up.
         int u = (int)(err * kp);
 
-        int mB = constrain(BASE_POWER + u, MIN_POWER, 100);
-        int mC = constrain(BASE_POWER - u, MIN_POWER, 100);
+        int mB = clampPower(BASE_POWER + u, MIN_POWER, 100);
+        int mC = clampPower(BASE_POWER - u, MIN_POWER, 100);
 
-        // if one wheel has already reached the target — freeze it
+        // if one wheel has already reached the target a?? freeze it
         // (prevents it from overshooting while the other still catches up)
         if (encB >= path) mB = 0;
         if (encC >= path) mC = 0;

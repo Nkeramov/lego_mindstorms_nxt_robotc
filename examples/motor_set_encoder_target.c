@@ -49,7 +49,7 @@ task main(){
         displayBigTextLine(6, "TIMEOUT");
     else {
         displayBigTextLine(6, "Done");
-		displayBigTextLine(7, "Err: %d", nMotorEncoder[motorA] - (startPos + kTargetCounts));
+				displayBigTextLine(7, "Err: %d", nMotorEncoder[motorA] - (startPos + kTargetCounts));
 	}
     playSound(soundBlip);
     while (bSoundActive);

@@ -1,5 +1,3 @@
-#pragma config(Sensor, S1, conveyor, sensorTouch)
-
 task main(){
     const int kPollInterval = 20;   // ms between polls
 
@@ -16,25 +14,22 @@ task main(){
     bool running   = true;
 
     eraseDisplay();
-    displayBigTextLine(0, "Encoder view");
+    displayBigTextLine(0, "Encoders");
 
     while (running){
         // read current state
         int a = nMotorEncoder[motorA];
         int b = nMotorEncoder[motorB];
         int c = nMotorEncoder[motorC];
-        int t = SensorValue[conveyor];
 
         // refresh display only if something changed
-        if (a != lastA || b != lastB || c != lastC || t != lastTouch){
-            displayCenteredTextLine(1, "Touch: %d", t);
-            displayBigTextLine(3, "A: %d", a);
-            displayBigTextLine(5, "B: %d", b);
-            displayBigTextLine(7, "C: %d", c);
+        if (a != lastA || b != lastB || c != lastC){
+            displayBigTextLine(2, "A: %d", a);
+            displayBigTextLine(4, "B: %d", b);
+            displayBigTextLine(6, "C: %d", c);
             lastA = a;
             lastB = b;
             lastC = c;
-            lastTouch = t;
         }
 
         // buttons: Enter = reset, Escape = quit
