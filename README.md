@@ -1,5 +1,9 @@
 # LEGO Mindstorms NXT RobotC projects
 
+[![GPLv3 License](https://img.shields.io/badge/License-GPL%20v3-yellow.svg)](https://github.com/add-le/robotc-compass/blob/master/LICENCE)
+[![Language C](https://img.shields.io/badge/Language-C-blue.svg)](https://docs.godotengine.org/en/stable/tutorials/scripting/gdscript/gdscript_basics.html)
+[![Engine RobotC](https://img.shields.io/badge/Engine-RobotC-red.svg)](https://godotengine.org/en)
+
 <p align="center"><img src="images/lego_mindstorms_logo.png"/></p>
 
 A collection of [RobotC](https://www.robotc.net/) projects and code examples for the LEGO Mindstorms NXT 2.0 programmable brick.  
@@ -47,8 +51,27 @@ The repository also includes various code examples for working with sensors and 
 There are also more complex examples demonstrating multitasking and connecting external devices via the I2C bus. 
 All files are located in the `examples` directory.
 
-## Requirements
+## 📦 Requirements
 - LEGO Mindstorms NXT 2.0
 - RobotC for NXT
 - NXT firmware
 - USB or Bluetooth connection
+
+## 🤝 Contributing
+
+If you want to contribute, please follow these steps:
+
+1. Fork the repository.
+2. Create a new branch for your feature or bug fix.
+3. Make your changes and commit them.
+4. Push to your fork and create a pull request.
+
+## 📝 License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## 📚 References
+
+- [Lego Projects By Sivan Toledo](https://www.tau.ac.il/~stoledo/lego/)
+- [Bricktronics](https://www.wayneandlayne.com/bricktronics/)
+- [Philo's Home Page EV3/NXT](https://www.philohome.com/nxt.htm)
