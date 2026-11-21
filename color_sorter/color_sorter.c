@@ -1,62 +1,74 @@
 #pragma config(Sensor, S1,     transporter,    sensorTouch)
 #pragma config(Sensor, S2,     pusher,         sensorTouch)
 #pragma config(Sensor, S3,     color,          sensorColorNxtFULL)
+#pragma config(Motor,  motorA,          transporter,   tmotorNXT, PIDControl, encoder)
+#pragma config(Motor,  motorB,          pusher,        tmotorNXT, PIDControl, encoder)
+#pragma config(Motor,  motorC,          belt,          tmotorNXT, PIDControl, encoder)
+
+#define BELT_SPEED 							100
+#define PUSHER_SPEED						40
+#define TRANSPORTER_SPEED   				30
 
 
-int red = 0, green = 0, blue = 0, yellow = 0;
-int currentTransporterEncoder = 0;
-int centerTransporterEncoder = 300;
-int redTransporterEncoder = 270;
-int greenTransporterEncoder = 270 - 180;
-int blueTransporterEncoder = 270 - 360;
-int yellowTransporterEncoder = 270 - 540;
+int redBricksCnt = 0;
+int greenBricksCnt = 0;
+int blueBricksCnt = 0;
+int yellowBricksCnt = 0;
+
+int currentTransporterPosition = 0;
+// encoder value for rotating the transporter from the far-right position to the center (point 0)
+int centerTransporterPosition = 300;
+// the following encoder values are calculated from the center (point 0) to the corresponding color
+int redTransporterPosition = 270;
+int greenTransporterPosition = 270 - 180;
+int blueTransporterPosition = 270 - 360;
+int yellowTransporterPosition = 270 - 540;
 
 
 void initTransporter(){
-	motor[motorB] = -30;
-	while (SensorValue[S1] == 0){
+	nMotorEncoder[transporter] = 0;
+	motor[transporter] = -TRANSPORTER_SPEED;
+	while (SensorValue[transporter] == 0){
 		wait1Msec(5);
 	}
-	motor[motorB] = 0;
-	nMotorEncoder[motorB] = 0;
-	nMotorEncoderTarget[motorB] = centerTransporterEncoder;
-	motor[motorB] = 30;
-	while(nMotorRunState[motorB] != runStateIdle){
+	nMotorEncoder[transporter] = 0;
+	nMotorEncoderTarget[transporter] = centerTransporterPosition;
+	motor[transporter] = TRANSPORTER_SPEED;
+	while(nMotorRunState[transporter] != runStateIdle){
 		wait1Msec(5);
 	}
-	nMotorEncoder[motorB] = 0;
-	motor[motorB] = 0;
-	currentTransporterEncoder = 0;
+	motor[transporter] = 0;
+	nMotorEncoder[transporter] = 0;
+	currentTransporterPosition = 0;
 }
 
 void moveToTargetPosition(int targetPosition){
-	int encoderDifference = targetPosition - currentTransporterEncoder;
+	int encoderDifference = targetPosition - currentTransporterPosition;
 	if (encoderDifference != 0) {
-		nMotorEncoder[motorB] = 0;
-		nMotorEncoderTarget[motorB] = abs(encoderDifference);
-		motor[motorB] = sgn(encoderDifference) * 30;
-		while(nMotorRunState[motorB] != runStateIdle){
+		nMotorEncoder[transporter] = 0;
+		nMotorEncoderTarget[transporter] = abs(encoderDifference);
+		motor[transporter] = sgn(encoderDifference) * TRANSPORTER_SPEED;
+		while(nMotorRunState[transporter] != runStateIdle){
 			wait1Msec(5);
 		}
-		currentTransporterEncoder = targetPosition;
+		currentTransporterPosition = targetPosition;
 	}
-	motor[motorB] = 0;
+	motor[transporter] = 0;
 }
 
 void pushCube(){
-	motor[motorA] = -40;
-	wait1Msec(500);
-	while (SensorValue[S2] == 0){
+	motor[pusher] = -PUSHER_SPEED;
+	while (SensorValue[pusher] == 0){
 		wait1Msec(5);
 	}
-	motor[motorA] = 0;
+	motor[pusher] = 0;
 }
 
 void printInfo(){
-	displayBigTextLine(0, "Red %d", red);
-	displayBigTextLine(2, "Green %d", green);
-	displayBigTextLine(4, "Blue %d", blue);
-	displayBigTextLine(6, "Yellow %d", yellow);
+	displayBigTextLine(0, "Red %d", redBricksCnt);
+	displayBigTextLine(2, "Blue %d", blueBricksCnt);
+	displayBigTextLine(4, "Green %d", greenBricksCnt);
+	displayBigTextLine(6, "Yellow %d", yellowBricksCnt);
 }
 
 task main(){
@@ -64,30 +76,31 @@ task main(){
 	while(true){
 		TColors brickColor = SensorValue[color];
 		if (brickColor != BLACKCOLOR){
-			motor[motorC] = -100;
+			motor[belt] = -BELT_SPEED;
 			switch(brickColor){
 				case REDCOLOR:
-					red++;
-					moveToTargetPosition(redTransporterEncoder);
+					redBricksCnt++;
+					moveToTargetPosition(redTransporterPosition);
 					break;
 				case GREENCOLOR:
-					green++;
-					moveToTargetPosition(greenTransporterEncoder);
+					greenBricksCnt++;
+					moveToTargetPosition(greenTransporterPosition);
 					break;
 				case BLUECOLOR:
-					blue++;
-					moveToTargetPosition(blueTransporterEncoder);
+					blueBricksCnt++;
+					moveToTargetPosition(blueTransporterPosition);
 					break;
 				case YELLOWCOLOR:
-					yellow++;
-					moveToTargetPosition(yellowTransporterEncoder);
+					yellowBricksCnt++;
+					moveToTargetPosition(yellowTransporterPosition);
 					break;
 			}
-			printInfo();
 			pushCube();
+			printInfo();
 			wait1Msec(1500);
 		}
-		else
-			motor[motorC] = 0;
+		else {
+			motor[belt] = 0;
+		}
 	}
 }
