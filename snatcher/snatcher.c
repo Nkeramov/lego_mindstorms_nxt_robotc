@@ -3,29 +3,31 @@
 #pragma config(Sensor, S3, color, sensorColorNxtFULL)
 #pragma config(Sensor, S4, sonar, sensorSONAR)
 
+// alternative configurations
+// #pragma config(Sensor, S1, touch, sensorTouch) // LEGO Touch
+// #pragma config(Sensor, S2, gyro, sensorI2CCustomFastSkipStates) // MindSensors IMU
+
+#define I2C_Touch
+#define HiTechnic_Gyro
+
 #include "utils.c"
 #include "bluetooth.c"
 #include "sensors.c"
 
-
-//#define MindSensors_IMU		// #pragma config(Sensor, S2, gyro, sensorI2CCustomFastSkipStates)
-#define HiTechnic_Gyro 			// #pragma config(Sensor, S2, gyro, sensorI2CHiTechnicGyro)
-
-#define I2C_Touch						// #pragma config(Sensor, S1, touch, sensorI2CCustom)
-//#define LEGO_Touch				// #pragma config(Sensor, S1, touch, sensorTouch)
-
 #ifdef HiTechnic_Gyro
 		#include "hitechnic_gyro_driver.c"
 #endif
+
 #ifdef MindSensors_IMU
 		#include "mindsensors_imu.h"
 		#include "mindsensors_gyro_driver.c"
 #endif
 
 #define MOVE_POINTS										5
-#define CLAW_CLOSE_SPEED 							40
 #define CLAW_OPEN_SPEED 							40
 #define CLAW_HOLD_SPEED 							15
+#define CLAW_CLOSE_SPEED 							40
+// encoder value for claw's motor rotation from the top position to bottom position (until fully open)
 #define CLAW_OPEN_ENCODER 						600
 
 #define FRICTION_VAL									0.02899
@@ -64,13 +66,13 @@ string programNames[14][2] = {
 };
 
 TNxtButtons curBtn = kNoButton, oldBtn = kNoButton;
-bool newClawState = true, curClawState = false;
+bool targetClawState = true, currentClawState = false;
 int azimuth = 90;
 float curX = 0, curY = 0;
 
 
 #ifdef I2C_Touch
-	void setRGB(TColors cleft,  TColors cright){
+	void setRGB(TColors leftLedsColor,  TColors rightLedsColor){
 		ubyte i2cconfg[3];
 		const tSensors kPort = S1;
 		const short kSize = 0;
@@ -81,13 +83,13 @@ float curX = 0, curY = 0;
 		i2cconfg[kSize] = 2;
 		i2cconfg[kAddress] = nAddress;
 		i2cconfg[kData] = 0b00011000;
-		switch (cleft){
+		switch (leftLedsColor){
 			case BLUECOLOR:   i2cconfg[kData] += 0b00000011; break;
 			case GREENCOLOR:  i2cconfg[kData] += 0b00000101; break;
 			case REDCOLOR:    i2cconfg[kData] += 0b00000110; break;
 			default:          i2cconfg[kData] += 0b00000111; break;
 		}
-		switch (cright){
+		switch (rightLedsColor){
 			case BLUECOLOR:   i2cconfg[kData] += 0b01100000; break;
 			case GREENCOLOR:  i2cconfg[kData] += 0b10100000; break;
 			case REDCOLOR:    i2cconfg[kData] += 0b11000000; break;
@@ -215,15 +217,15 @@ void rotate(float angle = 180, short speed = 30){
 
 task Claw {
 	while (true){
-		if (newClawState && !curClawState) {
+		if (targetClawState && !currentClawState) {
 			resetMotor(motorA);
 			motor[motorA] = CLAW_CLOSE_SPEED;
 			waitUntil(getTouch());
 			resetMotor(motorA);
 			motor[motorA] = CLAW_HOLD_SPEED;
-			curClawState = true;
+			currentClawState = true;
 		} else
-		if (!newClawState && curClawState){
+		if (!targetClawState && currentClawState){
 			resetMotor(motorA);
 			motor[motorA] = CLAW_CLOSE_SPEED ;
 			waitUntil(getTouch());
@@ -231,10 +233,24 @@ task Claw {
 			motor[motorA] = -CLAW_OPEN_SPEED ;
 			waitUntil(abs(nMotorEncoder[motorA]) >= CLAW_OPEN_ENCODER);
 			resetMotor(motorA);
-			curClawState = false;
+			currentClawState = false;
 		}
 		wait1Msec(5);
 	}
+}
+
+// grab the object and lift the claw
+void closeClaw(bool wait = true){
+    targetClawState = true;
+    if (wait)
+	    waitUntil(getTouch());
+}
+
+// lower the claw and release the object
+void openClaw(bool wait = true){
+    targetClawState = false;
+    if (wait)
+	    waitUntil(!currentClawState);
 }
 
 TJoystickCommand parseButtons(ubyte *btData){
@@ -273,11 +289,11 @@ void executeCommand(TJoystickCommand cmd, ubyte speed = 50){
 }
 
 void processBluetoothPacket(ubyte *btData, ubyte *btDataOld){
-	// what we must to do with newClawState?
+	// what we must to do with targetClawState?
 	if (btData[4] != btDataOld[4]){
-		if (btData[4] && !curClawState) newClawState = true;
+		if (btData[4] && !currentClawState) openClaw(false);
 		else
-			if (!btData[4] && curClawState) newClawState = false;
+			if (!btData[4] && currentClawState) closeClaw(false);
 	}
 	TJoystickCommand cmd = parseButtons(btData);
 	ubyte speed = btData[5];
@@ -303,7 +319,7 @@ void searchAngle(int &minAngle, int &minDist, int maxAngle = 90, short speed = 1
 	stopMotors();
 	wait1Msec(300);
 	rotate(ceil(-gyroAngle),  speed);
-	//distance from newClawState (color sensor) to backward of sonar
+	//distance from targetClawState (color sensor) to backward of sonar
 	minDist = minDist - 10;
 }
 
@@ -333,23 +349,20 @@ void testSnatcher(){
 	wait1Msec(1000);
 	moveStraight(-15, 50);
 	wait1Msec(1000);
+	closeClaw();
 	rotate(180, 30);
 	wait1Msec(1000);
 	rotate(-180, 30);
 	wait1Msec(1000);
-	newClawState = true;
-	waitUntil(getTouch());
-	wait1Msec(1000);
-	newClawState = false;
+	openClaw();
 	playSound(soundBeepBeep);
-	newClawState = true;
-	waitUntil(getTouch());
 	rotate(45, 30);
 	wait1Msec(1000);
 	rotate(-90, 30);
 	wait1Msec(1000);
 	rotate(45, 30);
 	playSound (soundBeepBeep);
+	closeClaw();
 	#ifdef I2C_Touch
 		setRGB(REDCOLOR,  REDCOLOR);
 		wait1Msec(500);
@@ -359,7 +372,7 @@ void testSnatcher(){
 		wait1Msec(500);
 		setRGB(BLACKCOLOR,  BLACKCOLOR);
 	#endif
-	newClawState = false;
+	openClaw();
 }
 
 void printSelectMenu(short curProg = 0){
@@ -413,7 +426,7 @@ short selectProgram(void){
 void initSnatcher(){
 	startTask(Claw);
 	wait1Msec(1000);
-	newClawState = true; waitUntil(curClawState);
+	openClaw();
 	printLogo();
 	displayCenteredTextLine(6, "INIT");
 	displayCenteredTextLine(7, "BLUETOOTH");
@@ -452,9 +465,9 @@ task main(){
 		displayBigTextLine(0, "a = %d", angle);
 		displayBigTextLine(2, "d = %d", distance);
 		rotate(angle);
-		newClawState = false; waitUntil(!curClawState);
+		openClaw();
 		moveStraight(distance, 50);
-		newClawState = true; waitUntil(curClawState);
+		closeClaw();
 		switch (getColor()){
 			case  BLACKCOLOR: displayBigTextLine(4, "Black"); playSoundFile("black.rso"); break;
 			case  BLUECOLOR:	displayBigTextLine(4, "Blue"); playSoundFile("blue.rso"); break;
@@ -536,14 +549,14 @@ task main(){
 				stopMotors();
 				angle_old = gyroAngle;
 				azimuth = 90 - gyroAngle;
-				newClawState = false; waitUntil(!curClawState);
+				openClaw();
 				moveStraight(dist_new - 12);
-				newClawState = true; waitUntil(curClawState);
+				closeClaw();
 				moveTo(0,  0);
-				newClawState = false; waitUntil(!curClawState);
+				openClaw();
 				wait1Msec(500);
 				rotate(180);
-				newClawState = true; waitUntil(curClawState);
+				closeClaw();
 				gyroAngle = angle_old;
 				nSyncedMotors = synchBC;
 				nSyncedTurnRatio = -100;
@@ -553,14 +566,14 @@ task main(){
 		stopMotors();
 		break;
 	case 5: // code for selecting only green and blue balls
-		newClawState = false; waitUntil(!curClawState);
+		openClaw()
 		while (true){
 			curColor = SensorValue[color];
 			if ((curColor == GREENCOLOR) || (curColor == BLUECOLOR)){
 				playSound (soundBeepBeep);
-				newClawState = true; waitUntil(curClawState);
+				closeClaw();
 				wait1Msec(2000);
-				newClawState = false; waitUntil(!curClawState);
+				openClaw();
 				wait1Msec(1000);
 			}
 		}
@@ -580,7 +593,7 @@ task main(){
 		}
 		break;
 	case 7: //code for viewing gyro
-		//newClawState = false; waitUntil(!curClawState);
+		openClaw();
 		gyroAngle = 0;
 		float oldGyroAngle = gyroAngle - 100;
 		while(true){
@@ -595,7 +608,7 @@ task main(){
 		}
 		break;
 	case 8: // code for viewing color
-		newClawState = false; waitUntil(!curClawState);
+		openClaw();
 		oldColor = getColor();
 		while (true){
 			curColor = getColor();
@@ -703,12 +716,12 @@ task main(){
 		btConnect(channel,  "Joy");
 	  waitBluetoothConnected();
     playSoundFile("link.rso");
-    drawInterface(BT_MODE_MASTER, curClawState, speed, getDistance(), (ubyte)getColor());
+    drawInterface(BT_MODE_MASTER, currentClawState, speed, getDistance(), (ubyte)getColor());
     speed = 50;
 		while(true){
 			ubyte btMasterData[BT_DATA_SIZE];
 			memset(btMasterData, 0, BT_DATA_SIZE);
-			btMasterData[4] = curClawState;
+			btMasterData[4] = currentClawState;
     	btMasterData[5] = speed;
     	//btMasterData[6] = getDistance();
     	btMasterData[6] = curDistance;
@@ -724,8 +737,8 @@ task main(){
 					memcpy(btDataOld, btData, BT_DATA_SIZE);
 				}
 			}
-			//drawInterface(BT_MODE_MASTER, curClawState, speed, getDistance(), (ubyte)getColor());
-			drawInterface(BT_MODE_MASTER, curClawState, speed, curDistance, (ubyte)curColor);
+			//drawInterface(BT_MODE_MASTER, currentClawState, speed, getDistance(), (ubyte)getColor());
+			drawInterface(BT_MODE_MASTER, currentClawState, speed, curDistance, (ubyte)curColor);
 			wait1Msec(50);
 		}
 		break;
@@ -746,13 +759,13 @@ task main(){
 			cCmdMessageWriteToBluetooth(1,  btData,  6,  mailbox1);
 			wait1Msec(10);
 			cCmdMessageRead(btData, 5, mailbox2);
-			if (btData[4] && !curClawState) {
-				newClawState = true;
+			if (btData[4] && !currentClawState) {
+				closeClaw(false);
 				btData[5] = getColor();
 				cCmdMessageWriteToBluetooth(3, btData, 5, mailbox3);
 			} else
-			if (!btData[4] && curClawState) {
-				newClawState = false;
+			if (!btData[4] && currentClawState) {
+				openClaw(false);
 				cCmdMessageWriteToBluetooth(3, btData, 5, mailbox3);
 			}
 			TJoystickCommand cmd = parseButtons(btData);
