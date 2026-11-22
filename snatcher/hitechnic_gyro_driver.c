@@ -19,7 +19,7 @@ int 					samplingTimeMs = 10;
 
 
 task GyroDriver(){
-	nSchedulePriority = kHighPriority - 8;
+	nSchedulePriority = kHighPriority - 5;
 	wait1Msec(1500);
 	long samplesSum = 0;
 	for (int i = 0; i < GYRO_BIAS_SAMPLES ; i++){

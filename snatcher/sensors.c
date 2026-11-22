@@ -69,7 +69,7 @@ TColors getColor(){
 }
 
 task ColorSensorTask(){
-	nSchedulePriority = kHighPriority - 5;
+	nSchedulePriority = kHighPriority - 10;
 	while (true){
 		curColor = getColor();
 		wait1Msec(COLOR_SENSOR_DELAY);
@@ -77,7 +77,7 @@ task ColorSensorTask(){
 }
 
 task DistanceSensorTask(){
-	nSchedulePriority = kHighPriority - 5;
+	nSchedulePriority = kHighPriority - 10;
 	while (true){
 		curDistance = getDistance();
 		wait1Msec(SONAR_SENSOR_DELAY);

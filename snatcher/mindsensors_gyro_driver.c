@@ -1,23 +1,28 @@
 #pragma platform(NXT)
 #pragma autoStartTasks
 
-int 		gyroState = 0;
+typedef enum TGyroStates
+{
+	stateGyroInit,
+	stateGyroWorking,
+} TGyroStates;
+
+TGyroStates 	gyroState = stateGyroInit;
 float 	gyroAngle = 0.0;
 float 	dt = 0.01;
 
 #define gyroPort S2
 
-task GyroDriver()
-{
+task GyroDriver(){
 	short x_val, y_val, z_val;
 	float gyroVelocity = 0.0;
 
-	nSchedulePriority = kHighPriority - 8;
+	nSchedulePriority = kHighPriority - 5;
 	wait1Msec(1500);
 	//MSIMUsetGyroFilter(gyroPort, 0x00);
 	MSIMUsetGyroFilter(gyroPort, 0x04);
 	wait1Msec(1000);
-	gyroState = 1;
+	gyroState = stateGyroWorking;
 	clearTimer(T4);
 	while (true){
 		MSIMUreadGyroAxes(gyroPort, x_val, y_val, z_val);
@@ -27,5 +32,4 @@ task GyroDriver()
 		while(time1[T4] < dt * 1000) wait1Msec(1);
   	clearTimer(T4);
 	}
-	return;
 }
