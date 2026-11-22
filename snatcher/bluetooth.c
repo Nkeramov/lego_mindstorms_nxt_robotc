@@ -1,12 +1,12 @@
-const int BT_MODE_MASTER = 1;
-const int BT_MODE_SLAVE = 2;
+#define BT_MODE_MASTER			1
+#define BT_MODE_SLAVE				2
 
-const int BT_DATA_SIZE = 8;
+#define BT_PACKET_SIZE			8
 // 4 buttons, claw state, speed, distance, color
 // start claw state is up
 // start motors speed is 50
-ubyte btData[BT_DATA_SIZE] = {0, 0, 0, 0, 1, 50, 0, 0};
-ubyte btDataOld[BT_DATA_SIZE] = {0, 0, 0, 0, 1, 50, 0, 0};
+ubyte btData[BT_PACKET_SIZE] = {0, 0, 0, 0, 1, 50, 0, 0};
+ubyte btDataOld[BT_PACKET_SIZE] = {0, 0, 0, 0, 1, 50, 0, 0};
 
 
 void drawBluetoothLogo(ubyte mode){

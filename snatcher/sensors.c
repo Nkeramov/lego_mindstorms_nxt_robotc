@@ -13,13 +13,13 @@
 TColors curColor = BLACKCOLOR, oldColor = BLACKCOLOR;
 ubyte curDistance = 0, oldDistance = 0;
 
-void ShellSort(int *a, int n){
-	int d = n / 2;
+void ShellSort(ubyte *a, ubyte n){
+	ubyte d = n / 2;
 	while (d > 0){
 		for (int i = 0; i < n - d; i++){
 			int j = i;
 			while (j >= 0 && a[j] > a[j + d]){
-				int t = a[j + d];
+				ubyte t = a[j + d];
 				a[j + d] = a[j];
 				a[j] = t;
 				j--;
@@ -30,10 +30,10 @@ void ShellSort(int *a, int n){
 }
 
 ubyte getDistance(){
-	int validReadings[SONAR_SENSOR_REPEATS];
-  int validCount = 0;
+	ubyte validReadings[SONAR_SENSOR_REPEATS];
+  ubyte validCount = 0;
   while (validCount < SONAR_SENSOR_REPEATS){
-  	int val = SensorValue[sonar];
+  	ubyte val = (ubyte)SensorValue[sonar];
     if (val >= 0 && val <= SONAR_MAX_DISTANCE) {
     	validReadings[validCount++] = val;
     }
@@ -43,9 +43,7 @@ ubyte getDistance(){
 	int r = validReadings[SONAR_SENSOR_REPEATS / 2];
 	if (SONAR_SENSOR_REPEATS % 2 == 0)
 		r = round((validReadings[SONAR_SENSOR_REPEATS / 2] + validReadings[SONAR_SENSOR_REPEATS / 2 + 1]) / 2.0);
-	//if (r >= SONAR_CORRECTION_THRESHOLD)
-	//	r += SONAR_CORRECTION_OFFSET;
-	return (ubyte)clamp(r, 0, 255);
+	return uclamp((ubyte)r, 0, 255);
 }
 
 TColors getColor(){
@@ -70,22 +68,17 @@ TColors getColor(){
 	return colors[k];
 }
 
-task ColorSensorTask()
-{
+task ColorSensorTask(){
 	nSchedulePriority = kHighPriority - 5;
-	while (true)
-	{
+	while (true){
 		curColor = getColor();
 		wait1Msec(COLOR_SENSOR_DELAY);
 	}
 }
 
-
-task DistanceSensorTask()
-{
+task DistanceSensorTask(){
 	nSchedulePriority = kHighPriority - 5;
-	while (true)
-	{
+	while (true){
 		curDistance = getDistance();
 		wait1Msec(SONAR_SENSOR_DELAY);
 	}

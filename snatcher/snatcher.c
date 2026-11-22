@@ -11,14 +11,12 @@
 #define HiTechnic_Gyro
 
 #include "utils.c"
-#include "bluetooth.c"
 #include "sensors.c"
+#include "bluetooth.c"
 
 #ifdef HiTechnic_Gyro
 		#include "hitechnic_gyro_driver.c"
-#endif
-
-#ifdef MindSensors_IMU
+#elif defined(MindSensors_IMU)
 		#include "mindsensors_imu.h"
 		#include "mindsensors_gyro_driver.c"
 #endif
@@ -27,6 +25,11 @@
 #define CLAW_OPEN_SPEED 							40
 #define CLAW_HOLD_SPEED 							15
 #define CLAW_CLOSE_SPEED 							40
+
+#define MIN_PROGRAM_NUM								0
+#define MAX_PROGRAM_NUM								13
+
+
 // encoder value for claw's motor rotation from the top position to bottom position (until fully open)
 #define CLAW_OPEN_ENCODER 						600
 
@@ -48,26 +51,26 @@ enum TJoystickCommand {
   CMD_BACK_RIGHT
 };
 
-string programNames[14][2] = {
+string programNames[MAX_PROGRAM_NUM + 1][2] = {
   {"TEST MOTORS", "AND CLAW"},
-  {"FIND AND CATCH", "NEAREST OBJECT"},
+  {"SEARCH AND CATCH", "NEAREST OBJECT"},
   {"RANDOM MOVING", "AND RETURNING"},
-  {"WALL", "AVOIDANCE"},
-  {"FIND AND CATCH", "EVERYTHING"},
-  {"SELECT GREEN", "AND BLUE COLORS"},
+  {"OBSTACLE", "AVOIDANCE"},
+  {"SEARCH AND CATCH", "EVERYTHING"},
+  {"CATCH GREEN", "AND BLUE OBJECTS"},
   {"VIEW SONAR", "SENSOR"},
   {"VIEW GYRO", "SENSOR"},
   {"VIEW COLOR", "SENSOR"},
   {"PLAY ALL", "SOUNDS"},
   {"VIEW PRESSED", "BUTTON"},
-  {"BT CONTROL", "SLAVE"},
+  {"BT CONTROL", "SINGLE SLAVE"},
   {"BT CONTROL", "SINGLE MASTER"},
   {"BT CONTROL", "DUAL MASTER"}
 };
 
 TNxtButtons curBtn = kNoButton, oldBtn = kNoButton;
 bool targetClawState = true, currentClawState = false;
-int azimuth = 90;
+short azimuth = 90;
 float curX = 0, curY = 0;
 
 
@@ -75,9 +78,9 @@ float curX = 0, curY = 0;
 	void setRGB(TColors leftLedsColor,  TColors rightLedsColor){
 		ubyte i2cconfg[3];
 		const tSensors kPort = S1;
-		const short kSize = 0;
-		const short kAddress = 1;
-		const short kData = 2;
+		const ubyte kSize = 0;
+		const ubyte kAddress = 1;
+		const ubyte kData = 2;
 		typedef ubyte kResults[4];
 		ubyte nAddress = 0x40;
 		i2cconfg[kSize] = 2;
@@ -128,31 +131,31 @@ void stopMotors(){
 	resetMotor(motorC);
 }
 
-void moveFwd(short speed = 30){
+void moveFwd(byte speed = 30){
   nSyncedMotors = synchBC;
   nSyncedTurnRatio = 100;
 	motor[motorB] = speed;
 }
 
-void turn(short speed = 50){
+void turn(byte speed = 50){
 	nSyncedMotors = synchBC;
 	nSyncedTurnRatio = -100;
 	motor[motorB] = speed;
 }
 
-void fwdLeft(short speed = 50){
+void fwdLeft(byte speed = 50){
 	nSyncedMotors = synchBC;
 	nSyncedTurnRatio = 75;
 	motor[motorB] = speed;
 }
 
-void fwdRight(short speed = 50){
+void fwdRight(byte speed = 50){
 	nSyncedMotors = synchCB;
 	nSyncedTurnRatio = 75;
 	motor[motorC] = speed;
 }
 
-void moveStraight(int dist, short speed = 40){
+void moveStraight(short dist, byte speed = 40){
 	if (dist < 0){
 		speed = -abs(speed);
 		dist = abs(dist);
@@ -165,7 +168,7 @@ void moveStraight(int dist, short speed = 40){
 	motor[motorB] = speed;
 	while (abs(nMotorEncoder[motorB]) * FRICTION_VAL < dist);
 	*/
-	int m1 = speed; int m2 = speed;
+	byte m1 = speed, m2 = speed;
 	motor[motorB] = m1;
 	motor[motorC] = m2;
 	eraseDisplay();
@@ -173,12 +176,10 @@ void moveStraight(int dist, short speed = 40){
 		float e = gyroAngle - oldGyroAngle;
 		//oldGyroAngle = gyroAngle;
 		if (fabs(e) >= 2.0){
-			m1 = round(speed + e * 3.0);
-			m2 = round(speed - e * 3.0);
-			if (m1 > speed * 2) m1 = speed * 2;
-			if (m2 > speed * 2) m2 = speed * 2;
-			if (m1 < speed / 2) m1 = speed / 2;
-			if (m2 < speed / 2) m2 = speed / 2;
+			m1 = (byte)round(speed + e * 3.0);
+			m2 = (byte)round(speed - e * 3.0);
+			m1 = clamp(m1, speed * 2, speed / 2);
+			m2 = clamp(m2, speed * 2, speed / 2);
 		} else {
 			m1 = speed;
 			m2 = speed;
@@ -195,7 +196,7 @@ void moveStraight(int dist, short speed = 40){
 	curY += sgn(speed) * dist * sinDegrees(azimuth);
 }
 
-void rotate(float angle = 180, short speed = 30){
+void rotate(float angle = 180, byte speed = 30){
 	stopMotors();
 	azimuth -= angle;
 	speed = abs(speed);
@@ -215,7 +216,7 @@ void rotate(float angle = 180, short speed = 30){
 	stopMotors();
 }
 
-task Claw {
+task Claw(){
 	while (true){
 		if (targetClawState && !currentClawState) {
 			resetMotor(motorA);
@@ -291,27 +292,26 @@ void executeCommand(TJoystickCommand cmd, ubyte speed = 50){
 void processBluetoothPacket(ubyte *btData, ubyte *btDataOld){
 	// what we must to do with targetClawState?
 	if (btData[4] != btDataOld[4]){
-		if (btData[4] && !currentClawState) openClaw(false);
-		else
-			if (!btData[4] && currentClawState) closeClaw(false);
+		if (btData[4]) openClaw(false);
+		else closeClaw(false);
+		playSoundFile("Woops.rso");
 	}
 	TJoystickCommand cmd = parseButtons(btData);
 	ubyte speed = btData[5];
 	executeCommand(cmd, speed);
 }
 
-void searchAngle(int &minAngle, int &minDist, int maxAngle = 90, short speed = 10){
-	maxAngle = abs(maxAngle) % 360;
+void searchNearestObject(short &minAngle, ubyte &minDistance, short maxSearchAngle = 90, byte speed = 10){
+	maxSearchAngle = abs(maxSearchAngle) % 360;
 	speed = abs(speed);
-	rotate(-maxAngle, speed);
+	rotate(-maxSearchAngle, speed);
 	wait1Msec(300);
-	gyroAngle = -maxAngle;
-	minDist = SONAR_MAX_DISTANCE;
+	gyroAngle = -maxSearchAngle;
+	minDistance = SONAR_MAX_DISTANCE;
 	turn(-speed);
-	while (gyroAngle < maxAngle){
-		int newDist = getDistance();
-		if (newDist < minDist) {
-			minDist = newDist;
+	while (gyroAngle < maxSearchAngle){
+		if (curDistance < minDistance) {
+			minDistance = curDistance;
 			minAngle = ceil(gyroAngle);
 		}
 		wait1Msec(5);
@@ -319,8 +319,6 @@ void searchAngle(int &minAngle, int &minDist, int maxAngle = 90, short speed = 1
 	stopMotors();
 	wait1Msec(300);
 	rotate(ceil(-gyroAngle),  speed);
-	//distance from targetClawState (color sensor) to backward of sonar
-	minDist = minDist - 10;
 }
 
 //r+  l-  OX Reversed
@@ -375,7 +373,7 @@ void testSnatcher(){
 	openClaw();
 }
 
-void printSelectMenu(short curProg = 0){
+void printSelectMenu(byte curProg = 0){
 	eraseDisplay();
 	displayCenteredBigTextLine(0, "SELECT");
 	displayCenteredBigTextLine(2, "PROGRAM");
@@ -390,19 +388,31 @@ void printLogo(){
 	displayCenteredBigTextLine(2, "SNATCHER");
 }
 
-short selectProgram(void){
-	short curProg = 0, selProg = -1;
+byte selectProgram(void){
+	byte curentProgNum = 0, selectedProgNum = -1;
 	bool exit = false;
 	nNxtExitClicks  = 2;
-	printSelectMenu(curProg);
-	while (selProg < 0){
+	printSelectMenu(curentProgNum);
+	while (selectedProgNum < 0){
 		curBtn = waitForButtonPress();
 		playSound(soundBlip);
 		switch (curBtn){
-			case kLeftButton: curProg--; if (curProg < 0) curProg = 13;	break;
-			case kRightButton: curProg++; if (curProg > 13) curProg = 0;	break;
-			case kEnterButton: selProg = curProg; break;
-			case kExitButton: exit = true;  break;
+			case kLeftButton:
+				curentProgNum--;
+				if (curentProgNum < MIN_PROGRAM_NUM)
+					curentProgNum = MAX_PROGRAM_NUM;
+				break;
+			case kRightButton:
+				curentProgNum++;
+				if (curentProgNum > MAX_PROGRAM_NUM)
+					curentProgNum = MIN_PROGRAM_NUM;
+				break;
+			case kEnterButton:
+				selectedProgNum = curentProgNum;
+				break;
+			case kExitButton:
+				exit = true;
+				break;
 		}
 		if (exit){
 			eraseDisplay();
@@ -412,15 +422,15 @@ short selectProgram(void){
 			wait1Msec(1000);
 			exit = false;
 		}
-		printSelectMenu(curProg);
+		printSelectMenu(curentProgNum);
 		waitForButtonRelease();
 	}
 	// program selected go to perform it
 	eraseDisplay();
 	displayCenteredBigTextLine(2, "SELECTED");
-	displayCenteredBigTextLine(4, "%d", selProg);
+	displayCenteredBigTextLine(4, "%d", selectedProgNum);
 	wait1Msec(500);
-	return selProg;
+	return selectedProgNum;
 }
 
 void initSnatcher(){
@@ -441,8 +451,8 @@ void initSnatcher(){
 
 task main(){
 	initSnatcher();
-	int numberProgram = selectProgram();
-	int speed = 0;
+	byte numberProgram = selectProgram();
+	short speed = 0;
 	switch (numberProgram){
 	case 0: // self-test code
 		bool test = true;
@@ -458,17 +468,20 @@ task main(){
 				test = false;
 		}
 		break;
-	case 1: // searching objects
-		int angle = 0, distance = 0;
-		searchAngle(angle,  distance,  90,  20);
+	case 1: // search and catch newarest object
+		short minAngle;
+		ubyte minDistance;
+		searchNearestObject(minAngle, minDistance, 90, 20);
 		eraseDisplay();
-		displayBigTextLine(0, "a = %d", angle);
-		displayBigTextLine(2, "d = %d", distance);
-		rotate(angle);
+		displayBigTextLine(0, "a = %d", minAngle);
+		displayBigTextLine(2, "d = %d", minDistance);
+		rotate(minAngle);
 		openClaw();
-		moveStraight(distance, 50);
+		//distance from claw's color sensor to backward of sonar
+		short distanceToMove = (short)minDistance - 10;
+		moveStraight(distanceToMove, 50);
 		closeClaw();
-		switch (getColor()){
+		switch (curColor){
 			case  BLACKCOLOR: displayBigTextLine(4, "Black"); playSoundFile("black.rso"); break;
 			case  BLUECOLOR:	displayBigTextLine(4, "Blue"); playSoundFile("blue.rso"); break;
 			case  GREENCOLOR:	displayBigTextLine(4, "Green"); playSoundFile("green.rso"); break;
@@ -478,7 +491,7 @@ task main(){
 			default: displayBigTextLine(4, "Undefined"); break;
 		}
 		break;
-	case 2: // moving and returning
+	case 2: // moving and returning to start point
 		#ifdef I2C_Touch
 			setRGB(REDCOLOR,  REDCOLOR);
 		#endif
@@ -516,7 +529,7 @@ task main(){
 			delta -= sgn(delta) * 360;
 		rotate(delta);
 		break;
-	case 3: // code for wall avoidance
+	case 3: // code for obstacle avoidance
 		moveStraight(50, 50);
 		while (true){
 			curDistance = getDistance();
@@ -532,7 +545,7 @@ task main(){
 			oldDistance = curDistance;
 		}
 		break;
-	case 4: //catch everything
+	case 4: // catch everything
 		int angle_old = 0, dist_new = 300;
 		speed = 20;
 		rotate(-90, speed);
@@ -565,23 +578,33 @@ task main(){
 		}
 		stopMotors();
 		break;
-	case 5: // code for selecting only green and blue balls
-		openClaw()
+	case 5: // code for catching only green and blue objects
+		oldColor = WHITECOLOR;
 		while (true){
-			curColor = SensorValue[color];
-			if ((curColor == GREENCOLOR) || (curColor == BLUECOLOR)){
-				playSound (soundBeepBeep);
-				closeClaw();
-				wait1Msec(2000);
-				openClaw();
-				wait1Msec(1000);
+			TColors seenColor = curColor;
+			if (seenColor != oldColor){
+				eraseDisplay();
+				displayCenteredBigTextLine(0,  "Catch");
+				displayCenteredBigTextLine(2,  "by color");
+				if ((seenColor == GREENCOLOR) || (seenColor == BLUECOLOR)){
+					displayCenteredBigTextLine(4,  "catch!!!");
+					playSoundFile("Woops.rso");
+					closeClaw();
+					wait1Msec(2000);
+					openClaw();
+					wait1Msec(1000);
+				}
+				else {
+					displayCenteredBigTextLine(4,  "wait...");
+				}
+				oldColor = seenColor;
 			}
+			wait1Msec(100);
 		}
 		break;
-	case 6: // code for viewing sonar
+	case 6: // display sonar sensor distance
 		oldDistance = 0;
 		while (true){
-			curDistance = getDistance();
 			if (curDistance != oldDistance){
 				eraseDisplay();
 				displayCenteredBigTextLine(0,  "View");
@@ -592,8 +615,7 @@ task main(){
 			wait1Msec(100);
 		}
 		break;
-	case 7: //code for viewing gyro
-		openClaw();
+	case 7: // display gyro sensor angle
 		gyroAngle = 0;
 		float oldGyroAngle = gyroAngle - 100;
 		while(true){
@@ -607,16 +629,15 @@ task main(){
 			wait1Msec(100);
 		}
 		break;
-	case 8: // code for viewing color
-		openClaw();
-		oldColor = getColor();
+	case 8: // display color sensor value
+		oldColor = WHITECOLOR;
 		while (true){
-			curColor = getColor();
-			if (curColor != oldColor){
+			TColors seenColor = curColor;
+			if (seenColor != oldColor){
 				eraseDisplay();
 				displayCenteredBigTextLine(0,  "View");
 				displayCenteredBigTextLine(2,  "color");
-				switch (curColor){
+				switch (seenColor){
 					case  BLACKCOLOR: displayCenteredBigTextLine(4, "Black"); playSoundFile("black.rso"); break;
 					case  BLUECOLOR:	displayCenteredBigTextLine(4, "Blue"); playSoundFile("blue.rso"); break;
 					case  GREENCOLOR:	displayCenteredBigTextLine(4, "Green"); playSoundFile("green.rso"); break;
@@ -625,11 +646,11 @@ task main(){
 					case  WHITECOLOR: displayCenteredBigTextLine(4, "White"); playSoundFile("white.rso"); break;
 					default: displayCenteredBigTextLine(4, "Undefined"); break;
 				}
-				displayCenteredBigTextLine(6, "int = %d", curColor);
+				displayCenteredBigTextLine(6, "int = %d", seenColor);
 				#ifdef I2C_Touch
-					setRGB(curColor,  curColor);
+					setRGB(seenColor, seenColor);
 				#endif
-				oldColor = curColor;
+				oldColor = seenColor;
 			}
 			wait1Msec(100);
 		}
@@ -637,14 +658,15 @@ task main(){
 	case 9: // code for playing all sounds
 		while (true){
 			for (int nSoundIndex = 0; nSoundIndex <= 113; ++nSoundIndex){
-				displayCenteredBigTextLine(3,  "%d",  nSoundIndex);
+				eraseDisplay();
+				displayCenteredBigTextLine(0,  "Playing");
+				displayCenteredBigTextLine(2,  "sounds");
+				displayCenteredBigTextLine(4,  "i = %d",  nSoundIndex);
 				playSound((TSounds) nSoundIndex);
-				if (bSoundActive){
-					while (bSoundActive){
+				while (bSoundActive){
 						wait1Msec(100);
-					}
-					wait1Msec(500);
 				}
+				wait1Msec(500);
 			}
 		}
 		break;
@@ -655,7 +677,7 @@ task main(){
 		displayCenteredBigTextLine(0, "View");
 		displayCenteredBigTextLine(2, "buttons");
 		displayCenteredBigTextLine(4, "No button");
-		short exit = -1, count = 0;
+		byte exit = -1, count = 0;
 		while (true){
 			curBtn = waitForButtonPress();
 			if (curBtn != oldBtn){
@@ -663,11 +685,11 @@ task main(){
 				displayCenteredBigTextLine(0, "View");
 				displayCenteredBigTextLine(2, "buttons");
 				switch (curBtn){
-				case kLeftButton:	  displayCenteredBigTextLine(4, "Left"); count++; break;
-				case kRightButton:	displayCenteredBigTextLine(4, "Right"); count++; break;
-				case kEnterButton:	displayCenteredBigTextLine(4, "Enter"); count ++; break;
-				case kExitButton:	  displayCenteredBigTextLine(4, "Exit"); exit++; count = 0; break;
-				default:            displayCenteredBigTextLine(4, "No button"); count++; break;
+					case kLeftButton:	  displayCenteredBigTextLine(4, "Left"); count++; break;
+					case kRightButton:	displayCenteredBigTextLine(4, "Right"); count++; break;
+					case kEnterButton:	displayCenteredBigTextLine(4, "Enter"); count ++; break;
+					case kExitButton:	  displayCenteredBigTextLine(4, "Exit"); exit++; count = 0; break;
+					default:            displayCenteredBigTextLine(4, "No button"); count++; break;
 				}
 				if (count > 1) exit = -1;
 				if (exit == 1) {
@@ -687,19 +709,19 @@ task main(){
 		displayCenteredBigTextLine(0, "WAITING");
 		displayCenteredBigTextLine(2, "FOR");
 		displayCenteredBigTextLine(4, "CONNECT");
-		displayCenteredTextLine(7, "SLAVE");
+		displayCenteredTextLine(7, "SINGLE SLAVE");
 		initBluetooth();
 	  waitBluetoothConnected();
 		playSoundFile("link.rso");
     drawInterface(BT_MODE_SLAVE);
 		while(true){
-			TFileIOResult nBTCmdRdErrorStatus = cCmdMessageRead(btData,  BT_DATA_SIZE,  mailbox1);
+			TFileIOResult nBTCmdRdErrorStatus = cCmdMessageRead(btData,  BT_PACKET_SIZE,  mailbox1);
 			if (nBTCmdRdErrorStatus == ioRsltSuccess){
 				// check difference in button's states
-				if (memcmp(btData, btDataOld, BT_DATA_SIZE) != 0) {
+				if (memcmp(btData, btDataOld, BT_PACKET_SIZE) != 0) {
 					drawInterface(BT_MODE_SLAVE);
 				  processBluetoothPacket(btData, btDataOld);
-					memcpy(btDataOld, btData, BT_DATA_SIZE);
+					memcpy(btDataOld, btData, BT_PACKET_SIZE);
 				}
 			}
 			wait1Msec(50);
@@ -716,33 +738,30 @@ task main(){
 		btConnect(channel,  "Joy");
 	  waitBluetoothConnected();
     playSoundFile("link.rso");
-    drawInterface(BT_MODE_MASTER, currentClawState, speed, getDistance(), (ubyte)getColor());
+    drawInterface(BT_MODE_MASTER, currentClawState, speed, getDistance(), (ubyte)curColor);
     speed = 50;
 		while(true){
-			ubyte btMasterData[BT_DATA_SIZE];
-			memset(btMasterData, 0, BT_DATA_SIZE);
-			btMasterData[4] = currentClawState;
+			ubyte btMasterData[BT_PACKET_SIZE];
+			memset(btMasterData, 0, BT_PACKET_SIZE);
+			btMasterData[4] = (ubyte)currentClawState;
     	btMasterData[5] = speed;
-    	//btMasterData[6] = getDistance();
     	btMasterData[6] = curDistance;
-    	//btMasterData[7] = getColor();
 			btMasterData[7] = (ubyte)curColor;
-    	cCmdMessageWriteToBluetooth(1, btMasterData, BT_DATA_SIZE, mailbox1);
-			TFileIOResult nBTCmdRdErrorStatus = cCmdMessageRead(btData, BT_DATA_SIZE, mailbox2);
+    	cCmdMessageWriteToBluetooth(1, btMasterData, BT_PACKET_SIZE, mailbox1);
+			TFileIOResult nBTCmdRdErrorStatus = cCmdMessageRead(btData, BT_PACKET_SIZE, mailbox2);
 			if (nBTCmdRdErrorStatus == ioRsltSuccess){
 				// check difference in button's states
-				if (memcmp(btData, btDataOld, BT_DATA_SIZE) != 0) {
+				if (memcmp(btData, btDataOld, BT_PACKET_SIZE) != 0) {
 					speed = btData[5];
 					processBluetoothPacket(btData, btDataOld);
-					memcpy(btDataOld, btData, BT_DATA_SIZE);
+					memcpy(btDataOld, btData, BT_PACKET_SIZE);
 				}
 			}
-			//drawInterface(BT_MODE_MASTER, currentClawState, speed, getDistance(), (ubyte)getColor());
 			drawInterface(BT_MODE_MASTER, currentClawState, speed, curDistance, (ubyte)curColor);
 			wait1Msec(50);
 		}
 		break;
-	case 13: // code for BT control dual master mode
+		case 13: // code for BT control dual master mode
 		eraseDisplay();
 		displayCenteredBigTextLine(0, "WAITING");
 		displayCenteredBigTextLine(2, "FOR");
@@ -759,12 +778,12 @@ task main(){
 			cCmdMessageWriteToBluetooth(1,  btData,  6,  mailbox1);
 			wait1Msec(10);
 			cCmdMessageRead(btData, 5, mailbox2);
-			if (btData[4] && !currentClawState) {
+			if (btData[4]) {
 				closeClaw(false);
-				btData[5] = getColor();
+				btData[5] = (ubyte)curColor;
 				cCmdMessageWriteToBluetooth(3, btData, 5, mailbox3);
 			} else
-			if (!btData[4] && currentClawState) {
+			if (!btData[4]) {
 				openClaw(false);
 				cCmdMessageWriteToBluetooth(3, btData, 5, mailbox3);
 			}

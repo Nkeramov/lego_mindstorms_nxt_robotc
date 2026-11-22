@@ -7,6 +7,10 @@ void waitForButtonRelease() {
   while(nNxtButtonPressed != kNoButton) wait1Msec(10);
 }
 
-int clamp(int val, int min, int max) {
+ubyte uclamp(ubyte val, ubyte min, ubyte max) {
+	return (val < min) ? min : ((val > max) ? max : val);
+}
+
+byte clamp(byte val, byte min, byte max) {
 	return (val < min) ? min : ((val > max) ? max : val);
 }
